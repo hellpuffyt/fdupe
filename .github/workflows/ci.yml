@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: "test (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: "Run tests (all targets)"
+        run: cargo test --all-targets --verbose
+
+  lint:
+    name: fmt and clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: "Check formatting"
+        run: cargo fmt --all -- --check
+      - name: "Run clippy (deny warnings)"
+        run: cargo clippy --all-targets -- -D warnings
+
+  msrv:
+    name: "MSRV build (1.88.0)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88.0"
+      - name: "Build with MSRV toolchain"
+        run: cargo build --all-targets
+
+  smoke:
+    name: "release smoke test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build release binary
+        run: cargo build --release
+      - name: "Generate a tree with known duplicates and scan it"
+        shell: bash
+        run: |
+          set -euo pipefail
+          tree=$(mktemp -d)
+          mkdir -p "$tree/a" "$tree/b"
+          echo "duplicate payload one" > "$tree/a/file1.txt"
+          echo "duplicate payload one" > "$tree/b/file1_copy.txt"
+          echo "unique payload two"    > "$tree/a/unique.txt"
+
+          out=$(./target/release/fdupe "$tree" --json)
+          echo "$out"
+
+          groups=$(echo "$out" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['duplicate_groups']))")
+          if [ "$groups" -ne 1 ]; then
+            echo "expected exactly 1 duplicate group, got $groups"
+            exit 1
+          fi
