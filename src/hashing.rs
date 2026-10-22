@@ -19,9 +19,11 @@ pub fn sample_hash(path: &Path, size: u64, sample_size: u64) -> io::Result<Strin
     let mut hasher = Sha256::new();
 
     if size <= sample_size.saturating_mul(2) {
-        let mut buf = Vec::with_capacity(usize::try_from(size).unwrap_or(usize::MAX));
-        file.read_to_end(&mut buf)?;
-        hasher.update(&buf);
+        // Read at most the `size` recorded by the walk. A file that has
+        // grown since (a log being written to) must not be slurped into
+        // memory whole; streaming through the hasher keeps memory flat.
+        let mut limited = file.take(size);
+        io::copy(&mut limited, &mut hasher)?;
         return Ok(format!("{:x}", hasher.finalize()));
     }
 

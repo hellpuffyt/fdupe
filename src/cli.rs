@@ -35,7 +35,8 @@ pub struct Cli {
     pub json: bool,
 
     /// Delete duplicate files directly, keeping one copy per group
-    /// according to `--keep`. Requires `--keep`.
+    /// according to `--keep` (required). Also required to let
+    /// `--from-manifest` remove files.
     #[arg(long, default_value_t = false)]
     pub delete: bool,
 
@@ -58,9 +59,9 @@ pub struct Cli {
     #[arg(long)]
     pub from_manifest: Option<PathBuf>,
 
-    /// When executing a manifest, skip re-hashing each file to confirm it
-    /// still matches the content recorded when the manifest was built.
-    /// Not recommended.
+    /// Skip re-hashing files immediately before deleting them (with
+    /// `--delete` or `--from-manifest`). The kept copy's existence is still
+    /// checked. Not recommended.
     #[arg(long, default_value_t = false)]
     pub skip_verify: bool,
 }

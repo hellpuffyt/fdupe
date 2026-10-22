@@ -159,7 +159,7 @@ fn delete_duplicates_keeps_first_and_removes_rest() {
     write_file(dir.path(), "c_third.txt", b"delete duplicates test content");
 
     let report = scan_dir(dir.path());
-    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false);
+    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false, false);
 
     assert_eq!(exec.deleted.len(), 2);
     assert!(dir.path().join("a_first.txt").exists());
@@ -174,7 +174,7 @@ fn delete_duplicates_dry_run_leaves_all_files() {
     write_file(dir.path(), "b.txt", b"dry run delete duplicates content");
 
     let report = scan_dir(dir.path());
-    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, true);
+    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, true, false);
 
     assert_eq!(exec.would_delete.len(), 1);
     assert!(exec.deleted.is_empty());
@@ -189,7 +189,7 @@ fn delete_duplicates_never_removes_every_copy() {
     write_file(dir.path(), "b.txt", b"never remove every copy content");
 
     let report = scan_dir(dir.path());
-    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false);
+    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false, false);
 
     let remaining = std::fs::read_dir(dir.path()).expect("read dir").count();
     assert_eq!(remaining, 1, "exactly one copy must survive");
@@ -203,7 +203,7 @@ fn delete_duplicates_with_shortest_path_strategy() {
     write_file(dir.path(), "s.txt", b"shortest path deletion content");
 
     let report = scan_dir(dir.path());
-    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::ShortestPath, false);
+    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::ShortestPath, false, false);
 
     assert_eq!(exec.deleted.len(), 1);
     assert!(dir.path().join("s.txt").exists());
@@ -218,7 +218,7 @@ fn reclaimable_bytes_reported_by_delete_matches_scan_stats() {
 
     let report = scan_dir(dir.path());
     let expected = report.stats.reclaimable_bytes;
-    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false);
+    let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false, false);
 
     assert_eq!(exec.bytes_reclaimed, expected);
 }

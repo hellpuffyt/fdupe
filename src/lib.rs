@@ -21,8 +21,8 @@ use std::path::PathBuf;
 /// size/sample/hash cascade over what remains.
 ///
 /// # Errors
-/// Returns an error if the exclude globs fail to compile or a root cannot
-/// be walked at all.
+/// Returns an error if the exclude globs fail to compile or a root does
+/// not exist or cannot be read at all.
 pub fn scan(
     roots: &[PathBuf],
     min_size: u64,
@@ -31,7 +31,7 @@ pub fn scan(
     sample_size: Option<u64>,
 ) -> anyhow::Result<ScanReport> {
     let opts = walk::ScanOptions::new(min_size, follow_symlinks, exclude_patterns)?;
-    let files = walk::collect_files(roots, &opts)?;
+    let (files, walk_errors) = walk::collect_files_counting_errors(roots, &opts)?;
 
     let (identity_groups, candidates) = identity::split_by_identity(files);
     let identity_extra_files: usize = identity_groups.iter().map(|g| g.paths.len() - 1).sum();
@@ -40,6 +40,7 @@ pub fn scan(
     stats.files_scanned += identity_extra_files;
     stats.identity_groups = identity_groups.len();
     stats.identity_files_skipped = identity_extra_files;
+    stats.unreadable_skipped += walk_errors;
 
     Ok(ScanReport { duplicate_groups, identity_groups, stats })
 }

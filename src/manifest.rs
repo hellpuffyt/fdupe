@@ -76,12 +76,21 @@ pub struct ExecutionReport {
 
 /// Execute (or, if `dry_run`, simulate) a manifest's deletions.
 ///
-/// Every group is re-validated before anything happens: the file that
-/// would be kept must not itself be in the delete list (which would wipe
-/// out every copy), and, unless `skip_verify` is set, each file scheduled
-/// for deletion is re-hashed and must still match the group's recorded
-/// hash, so a manifest generated against a since-modified tree cannot
-/// silently delete the wrong bytes.
+/// Every group is re-validated before anything in it is touched:
+///
+/// * the file that would be kept must not itself be scheduled for deletion
+///   (by path *or* by file identity, so `./a` vs `a` or a hard link cannot
+///   sneak the survivor into the delete list);
+/// * the kept file must still exist and, unless `skip_verify` is set, still
+///   hash to the group's recorded hash. If it is gone or changed, deleting
+///   the other copies could destroy the last copy of that content, so the
+///   whole group is refused;
+/// * unless `skip_verify` is set, each file scheduled for deletion is
+///   re-hashed and must still match the recorded hash, so a manifest
+///   generated against a since-modified tree cannot delete the wrong bytes.
+///
+/// Even with `skip_verify`, the survivor's existence and identity checks
+/// always run.
 #[must_use]
 pub fn execute_manifest(manifest: &Manifest, dry_run: bool, skip_verify: bool) -> ExecutionReport {
     let mut report = ExecutionReport::default();
@@ -94,9 +103,36 @@ pub fn execute_manifest(manifest: &Manifest, dry_run: bool, skip_verify: bool) -
             continue;
         }
 
+        if let Some(problem) = survivor_problem(entry, skip_verify) {
+            report.refused_groups.push(format!(
+                "refusing group {} (size={}): kept copy {} {problem}",
+                entry.hash,
+                entry.size,
+                entry.keep.display()
+            ));
+            for victim in &entry.delete {
+                report.skipped.push((victim.clone(), format!("kept copy {problem}")));
+            }
+            continue;
+        }
+
+        let mut seen: Vec<&PathBuf> = Vec::new();
         for victim in &entry.delete {
-            if !victim.exists() {
+            if seen.contains(&victim) {
+                continue;
+            }
+            seen.push(victim);
+
+            if fs::symlink_metadata(victim).is_err() {
                 report.skipped.push((victim.clone(), "path no longer exists".to_string()));
+                continue;
+            }
+
+            // A victim that is the very file being kept (another spelling of
+            // the same path, or a hard link to it) must never be removed by
+            // this path: for a different spelling it *is* the survivor.
+            if same_file::is_same_file(victim, &entry.keep).unwrap_or(false) {
+                report.skipped.push((victim.clone(), "same file as the kept copy".to_string()));
                 continue;
             }
 
@@ -133,4 +169,21 @@ pub fn execute_manifest(manifest: &Manifest, dry_run: bool, skip_verify: bool) -
     }
 
     report
+}
+
+/// Why the survivor of `entry` cannot be relied on, if it cannot.
+fn survivor_problem(entry: &ManifestEntry, skip_verify: bool) -> Option<String> {
+    match fs::metadata(&entry.keep) {
+        Err(e) => return Some(format!("is not readable ({e})")),
+        Ok(meta) if !meta.is_file() => return Some("is not a regular file".to_string()),
+        Ok(_) => {}
+    }
+    if skip_verify {
+        return None;
+    }
+    match full_hash(&entry.keep) {
+        Ok(h) if h == entry.hash => None,
+        Ok(_) => Some("changed since the manifest was generated".to_string()),
+        Err(e) => Some(format!("could not be verified ({e})")),
+    }
 }
