@@ -40,7 +40,7 @@ fn kept_copy_deleted_after_manifest_refuses_the_group() {
     fs::remove_file(&a).unwrap();
     for skip_verify in [false, true] {
         let exec = execute_manifest(&manifest, false, skip_verify);
-        assert!(exec.deleted.is_empty());
+        assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
         assert_eq!(exec.refused_groups.len(), 1);
     }
     assert!(b.exists(), "last copy must survive");
@@ -55,7 +55,7 @@ fn kept_copy_modified_after_manifest_refuses_the_group() {
 
     fs::write(&a, b"a was rewritten since the scan").unwrap();
     let exec = execute_manifest(&manifest, false, false);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert_eq!(exec.refused_groups.len(), 1);
     assert_eq!(fs::read(&b).unwrap(), b"original contents of a");
 }
@@ -74,7 +74,7 @@ fn victim_that_is_the_kept_file_under_another_spelling_is_not_deleted() {
         groups: vec![ManifestEntry { size: 16, hash, keep: a.clone(), delete: vec![other_spelling] }],
     };
     let exec = execute_manifest(&manifest, false, false);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert!(a.exists());
 }
 
@@ -91,7 +91,7 @@ fn hard_link_victim_of_the_kept_file_is_not_deleted() {
         groups: vec![ManifestEntry { size: 19, hash, keep: a.clone(), delete: vec![link.clone()] }],
     };
     let exec = execute_manifest(&manifest, false, false);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert!(link.exists());
 }
 
@@ -106,7 +106,7 @@ fn direct_delete_reverifies_files_changed_after_the_scan() {
 
     fs::write(&b, b"b changed after the scan").unwrap();
     let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, false, false);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert_eq!(fs::read(&b).unwrap(), b"b changed after the scan");
 }
 

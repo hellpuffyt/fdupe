@@ -57,7 +57,7 @@ fn execute_manifest_dry_run_deletes_nothing() {
     let manifest = build_manifest(&report.duplicate_groups, KeepStrategy::First);
 
     let exec = execute_manifest(&manifest, true, false);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert_eq!(exec.would_delete.len(), 1);
     assert!(a.exists());
     assert!(b.exists());
@@ -91,7 +91,7 @@ fn execute_manifest_refuses_when_keep_is_also_in_delete_list() {
 
     let exec = execute_manifest(&manifest, false, true);
     assert_eq!(exec.refused_groups.len(), 1);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn execute_manifest_skips_files_that_no_longer_exist() {
     };
 
     let exec = execute_manifest(&manifest, false, true);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert_eq!(exec.skipped.len(), 1);
 }
 
@@ -128,7 +128,7 @@ fn execute_manifest_verifies_hash_before_deleting() {
 
     let exec = execute_manifest(&manifest, false, false);
     assert!(exec.deleted.is_empty(), "changed files must not be deleted");
-    assert!(!exec.skipped.is_empty());
+    assert_ne!(exec.skipped, [] as [(std::path::PathBuf, std::string::String); 0]);
     assert!(a.exists());
     assert!(b.exists());
 }
@@ -177,7 +177,7 @@ fn delete_duplicates_dry_run_leaves_all_files() {
     let exec = delete_duplicates(&report.duplicate_groups, KeepStrategy::First, true, false);
 
     assert_eq!(exec.would_delete.len(), 1);
-    assert!(exec.deleted.is_empty());
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
     assert!(dir.path().join("a.txt").exists());
     assert!(dir.path().join("b.txt").exists());
 }
@@ -193,7 +193,7 @@ fn delete_duplicates_never_removes_every_copy() {
 
     let remaining = std::fs::read_dir(dir.path()).expect("read dir").count();
     assert_eq!(remaining, 1, "exactly one copy must survive");
-    assert!(exec.refused_groups.is_empty());
+    assert_eq!(exec.refused_groups, [] as [std::string::String; 0]);
 }
 
 #[test]
