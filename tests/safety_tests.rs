@@ -141,7 +141,14 @@ fn report_only_modes_never_modify_the_tree() {
             .map(|e| {
                 let e = e.unwrap();
                 let m = e.metadata().unwrap();
-                (e.path().to_path_buf(), m.len(), m.modified().ok())
+                // Directory mtimes are not compared: NTFS updates them lazily, so a
+                // directory written during setup can change its mtime later with no
+                // action by fdupe. Files keep size + mtime; directories keep presence.
+                if m.is_dir() {
+                    (e.path().to_path_buf(), 0, None)
+                } else {
+                    (e.path().to_path_buf(), m.len(), m.modified().ok())
+                }
             })
             .collect();
         v.sort();
