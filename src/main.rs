@@ -22,6 +22,13 @@ fn main() -> ExitCode {
 
 fn run(cli: &Cli) -> anyhow::Result<()> {
     if let Some(manifest_path) = &cli.from_manifest {
+        // Executing a manifest removes files, so it needs the same explicit
+        // `--delete` as a direct delete (or `--dry-run` to preview).
+        if !cli.delete && !cli.dry_run {
+            anyhow::bail!(
+                "--from-manifest needs --delete to remove files, or --dry-run to preview; nothing was changed"
+            );
+        }
         let manifest = read_manifest(manifest_path)?;
         let report = execute_manifest(&manifest, cli.dry_run, cli.skip_verify);
         if cli.json {
@@ -30,7 +37,7 @@ fn run(cli: &Cli) -> anyhow::Result<()> {
             output::print_execution_report(&report, cli.dry_run);
         }
         if !report.refused_groups.is_empty() {
-            anyhow::bail!("{} group(s) refused: would have deleted every copy", report.refused_groups.len());
+            anyhow::bail!("{} group(s) refused; nothing in them was deleted", report.refused_groups.len());
         }
         return Ok(());
     }
@@ -58,7 +65,7 @@ fn run(cli: &Cli) -> anyhow::Result<()> {
         let strategy = cli
             .keep
             .ok_or_else(|| anyhow::anyhow!("--delete requires --keep <first|oldest|newest|shortest-path>"))?;
-        let exec_report = delete_duplicates(&report.duplicate_groups, strategy, cli.dry_run);
+        let exec_report = delete_duplicates(&report.duplicate_groups, strategy, cli.dry_run, cli.skip_verify);
         if cli.json {
             println!("{}", serde_json::to_string_pretty(&exec_report)?);
         } else {
@@ -66,7 +73,7 @@ fn run(cli: &Cli) -> anyhow::Result<()> {
         }
         if !exec_report.refused_groups.is_empty() {
             anyhow::bail!(
-                "{} group(s) refused: would have deleted every copy",
+                "{} group(s) refused; nothing in them was deleted",
                 exec_report.refused_groups.len()
             );
         }

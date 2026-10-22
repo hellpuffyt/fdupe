@@ -147,9 +147,12 @@ fn from_manifest_executes_previously_written_plan() {
 
     cmd().arg(dir.path()).arg("--manifest").arg(&manifest_path).arg("--keep").arg("first").assert().success();
 
+    // `--delete` is required to execute a manifest (as `--help` always
+    // documented); see `from_manifest_without_delete_or_dry_run_touches_nothing`.
     cmd()
         .arg("--from-manifest")
         .arg(&manifest_path)
+        .arg("--delete")
         .assert()
         .success()
         .stdout(predicate::str::contains("deleted 1 files"));
@@ -200,9 +203,14 @@ fn version_flag_prints_version() {
 
 #[test]
 fn scanning_nonexistent_path_does_not_crash() {
+    // Expectation changed in the production-readiness audit: a missing root
+    // used to exit 0 with "files scanned: 0", so a typo'd path silently
+    // reported "no duplicates". `fdupe::scan` documents that an unreadable
+    // root is an error; it now fails cleanly (no panic) with a message.
     cmd()
         .arg("/definitely/does/not/exist/anywhere")
         .assert()
-        .success()
-        .stdout(predicate::str::contains("files scanned:            0"));
+        .failure()
+        .stderr(predicate::str::contains("cannot scan"))
+        .stderr(predicate::str::contains("panicked").not());
 }

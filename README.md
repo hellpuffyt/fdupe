@@ -63,9 +63,14 @@ wouldn't reclaim anything.
 - `--min-size`, `--exclude <glob>` (repeatable), `--follow-symlinks`
   (off by default).
 - Safe deletion: `--delete` requires `--keep <strategy>`, supports
-  `--dry-run`, and refuses to delete every copy of a group.
-- JSON review manifest (`--manifest`) that `--from-manifest` later
-  executes, re-verifying each file's hash before removing it.
+  `--dry-run`, and refuses to delete every copy of a group. Before
+  anything in a group is removed, the kept copy is checked to still exist
+  and still match, and every file to be removed is re-hashed.
+- JSON review manifest (`--manifest`) that `--from-manifest --delete`
+  later executes under the same checks.
+- Unreadable entries (permission denied, symlink loops, files that vanish
+  mid-scan) are skipped and counted in the report rather than aborting the
+  scan; a root path that does not exist is an error.
 - Human-readable or `--json` output, including total reclaimable bytes.
 
 ### Parallelism
@@ -118,18 +123,19 @@ fdupe . --manifest review.json --keep first
 # 3. Inspect review.json by hand (it's plain JSON: one entry per
 #    duplicate group, with a `keep` path and a `delete` list).
 
-# 4. Execute exactly that plan. Each file is re-hashed immediately
-#    before deletion to confirm it still matches what the manifest
-#    recorded — if the tree changed since step 2, that file is skipped
-#    rather than deleted.
-fdupe --from-manifest review.json
+# 4. Execute exactly that plan (`--delete` is required). The kept copy
+#    of each group must still exist and match, or the whole group is
+#    refused; each file to delete is re-hashed immediately before
+#    deletion — if it changed since step 2, it is skipped.
+fdupe --from-manifest review.json --delete
 
 # Or preview the execution without deleting anything:
 fdupe --from-manifest review.json --dry-run
 ```
 
 If you'd rather skip the manifest step, `--delete` runs the same plan
-immediately:
+immediately, with the same re-verification (files can change between
+being hashed during the scan and being deleted):
 
 ```sh
 fdupe . --delete --keep first --dry-run   # preview
@@ -147,8 +153,20 @@ fdupe . --delete --keep first             # actually delete
 
 `fdupe` will always keep at least one file per duplicate group. If a
 manifest (hand-edited or otherwise) would result in every copy of a
-group being deleted, that group is refused and reported, and nothing in
-it is touched.
+group being deleted — the kept path also listed for deletion (under any
+spelling, or as a hard link), or the kept file missing or changed since
+the manifest was written — that group is refused and reported, nothing
+in it is touched, and the command exits non-zero.
+
+Without `--delete`, nothing is ever removed: scanning, `--json`,
+`--manifest` (which only writes the manifest file you name) and every
+`--dry-run` leave the scanned tree untouched. `--skip-verify` turns off
+the re-hashing (not the kept-copy existence check) and is not
+recommended.
+
+Remaining limits: there is an unavoidable window between verifying a file
+and removing it; and with `--follow-symlinks` a duplicate "copy" can be a
+symlink, in which case deleting it removes only the link.
 
 ### Platform differences
 
@@ -163,21 +181,30 @@ duplicate group instead of an identity group).
 
 ## Examples
 
+Real output (truncated after the summary) from a generated demo tree of 47
+files: 40 random "photos", copies of three of them in a `backup/` folder
+(one twice), one hard link, and two same-size files that share their
+first and last 4 KiB but differ in the middle:
+
 ```
 $ fdupe ./photos
 fdupe scan report
 ==================
-files scanned:            18422
-identical files (links):  3 (3 extra paths, not counted as duplicates)
-eliminated by size stage: 17811 files (unique size)
-sample-hashed:             611 files
-eliminated by sample stage: 598 files (unique sample)
-fully hashed:              13 files
+files scanned:            47
+identical files (links):  1 (1 extra paths, not counted as duplicates)
+eliminated by size stage: 37 files (unique size)
+sample-hashed:             9 files
+eliminated by sample stage: 0 files (unique sample)
+fully hashed:              9 files
 
-duplicate groups found:   5
-duplicate files:          13
-reclaimable space:        842.11 MiB
+duplicate groups found:   3
+duplicate files:          7
+reclaimable space:        110.15 KiB
 ```
+
+The two same-size files survive the sample stage (identical head and
+tail) and are only told apart by the full hash, which is exactly the case
+stage 3 exists for.
 
 ## Benchmarks
 
@@ -194,22 +221,28 @@ is the common case.
 cargo test --all-targets
 ```
 
-The test suite builds real directory trees with `tempfile` and covers:
+69 tests (0 ignored). The test suite builds real directory trees with `tempfile` and covers:
 identical-content detection, the same-size/different-content false
 positive guard, empty files, single-file trees, nested directories,
 exclude globs, the min-size filter, hard-link identity grouping, each
 `--keep` strategy choosing the correct survivor, the refusal to delete
 every copy of a group, manifest round-tripping and re-verification, and
 that the cascade actually short-circuits (a uniquely sized file is never
-sample- or fully-hashed).
+sample- or fully-hashed). `tests/safety_tests.rs` covers the deletion
+safety rules: a kept copy deleted or modified after the manifest was
+written, the kept file listed again under another spelling or as a hard
+link, files changed between scan and `--delete`, `--from-manifest`
+without `--delete`, report-only modes leaving the tree byte-for-byte
+unchanged, symlink loops, unreadable directories and files (Unix; these
+must run as a non-root user), and files growing during the scan.
 
 ## Security
 
 `fdupe` only reads file contents and metadata it's pointed at, and only
 writes to disk when you pass `--delete` or `--manifest`/`--from-manifest`
 with the appropriate flags. It contains no `unsafe` code
-(`#![forbid(unsafe_code)]`). If you find a security issue, please open a
-private security advisory on the repository rather than a public issue.
+(`#![forbid(unsafe_code)]`). If you find a security issue, please report it privately as described in
+[SECURITY.md](SECURITY.md) rather than opening a public issue.
 
 ## License
 

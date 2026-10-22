@@ -61,6 +61,8 @@ pub fn run_cascade(files: Vec<FileEntry>, sample_size: Option<u64>) -> (Vec<Dupe
     for (f, hash) in sampled {
         if let Some(hash) = hash {
             by_sample.entry((f.size, hash)).or_default().push(f);
+        } else {
+            stats.unreadable_skipped += 1;
         }
         // Files that failed to hash (e.g. vanished mid-scan, permission
         // denied) are silently dropped from consideration; they cannot be
@@ -95,6 +97,8 @@ pub fn run_cascade(files: Vec<FileEntry>, sample_size: Option<u64>) -> (Vec<Dupe
     for (f, hash) in fully_hashed {
         if let Some(hash) = hash {
             by_full.entry((f.size, hash)).or_default().push(f);
+        } else {
+            stats.unreadable_skipped += 1;
         }
     }
 

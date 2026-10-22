@@ -54,6 +54,10 @@ pub struct CascadeStats {
     pub duplicate_groups: usize,
     pub duplicate_files: usize,
     pub reclaimable_bytes: u64,
+    /// Entries skipped because they could not be read: walk errors
+    /// (permission denied, symlink loops, vanished mid-walk) and files that
+    /// could not be hashed. They cannot be proven duplicates.
+    pub unreadable_skipped: usize,
 }
 
 /// Full result of a scan: duplicate groups, identity groups, and stats.

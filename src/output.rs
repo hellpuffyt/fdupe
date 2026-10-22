@@ -33,6 +33,12 @@ pub fn print_report(report: &ScanReport) {
     println!("sample-hashed:             {} files", s.sample_hashed);
     println!("eliminated by sample stage: {} files (unique sample)", s.unique_sample_files);
     println!("fully hashed:              {} files", s.fully_hashed);
+    if s.unreadable_skipped > 0 {
+        println!(
+            "unreadable, skipped:       {} entries (permission denied, vanished, or symlink loop)",
+            s.unreadable_skipped
+        );
+    }
     println!();
     println!("duplicate groups found:   {}", s.duplicate_groups);
     println!("duplicate files:          {}", s.duplicate_files);

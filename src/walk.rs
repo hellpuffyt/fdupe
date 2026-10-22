@@ -38,14 +38,33 @@ impl ScanOptions {
 /// Walk every root path and return the files that pass the filters.
 ///
 /// # Errors
-/// Returns an error if a root path cannot be read at all.
+/// Returns an error if a root path does not exist or cannot be read at all.
 pub fn collect_files(roots: &[std::path::PathBuf], opts: &ScanOptions) -> anyhow::Result<Vec<FileEntry>> {
+    collect_files_counting_errors(roots, opts).map(|(files, _)| files)
+}
+
+/// Like [`collect_files`], but also returns how many entries below the
+/// roots could not be read (permission denied, vanished mid-walk, symlink
+/// loops when following links). Those are skipped rather than aborting the
+/// scan, and the count lets the report say so instead of staying silent.
+///
+/// # Errors
+/// Returns an error if a root path does not exist or cannot be read at all.
+pub fn collect_files_counting_errors(
+    roots: &[std::path::PathBuf],
+    opts: &ScanOptions,
+) -> anyhow::Result<(Vec<FileEntry>, usize)> {
     let mut out = Vec::new();
+    let mut errors = 0usize;
     for root in roots {
+        // A missing or unreadable root is a usage error, not "no duplicates".
+        std::fs::metadata(root).map_err(|e| anyhow::anyhow!("cannot scan {}: {e}", root.display()))?;
+
         let walker = WalkDir::new(root).follow_links(opts.follow_symlinks);
         for entry in walker {
             // Skip unreadable entries rather than aborting the whole scan.
             let Ok(entry) = entry else {
+                errors += 1;
                 continue;
             };
 
@@ -64,6 +83,7 @@ pub fn collect_files(roots: &[std::path::PathBuf], opts: &ScanOptions) -> anyhow
             }
 
             let Ok(meta) = entry.metadata() else {
+                errors += 1;
                 continue;
             };
 
@@ -75,5 +95,5 @@ pub fn collect_files(roots: &[std::path::PathBuf], opts: &ScanOptions) -> anyhow
             out.push(FileEntry { path: entry.path().to_path_buf(), size, modified: meta.modified().ok() });
         }
     }
-    Ok(out)
+    Ok((out, errors))
 }
