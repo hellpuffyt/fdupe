@@ -4,6 +4,40 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Data loss:** executing a manifest (or `--delete`) never checked the
+  copy being kept. If it had been deleted or changed after the manifest
+  was written, the remaining copies were deleted anyway, destroying the
+  last copy. The kept file must now exist and (unless `--skip-verify`)
+  still match, or the whole group is refused.
+- A victim naming the kept file under another spelling (`./a` vs `a`) or
+  as a hard link could be deleted; victims that are the same file as the
+  survivor are now skipped.
+- `--from-manifest` deleted files without `--delete`, although `--help`
+  documented `--delete` as required. It now refuses unless `--delete` or
+  `--dry-run` is given.
+- `--delete` skipped re-verification; files changed between the scan and
+  the deletion are now re-hashed and skipped if they no longer match.
+- Stage-2 hashing read small files with `read_to_end`, so a file that grew
+  after the walk was read whole into memory; reads are now limited to the
+  walked size and streamed.
+- A missing root path exited 0 with an empty report; it is now an error.
+
+### Added
+
+- `unreadable_skipped` in the report: entries skipped because of
+  permission errors, symlink loops or files vanishing mid-scan.
+- `tests/safety_tests.rs`; `SECURITY.md`, `.editorconfig`,
+  `docs/PRODUCTION_READINESS.md`.
+
+### Changed
+
+- `delete_duplicates` takes a `skip_verify` argument.
+- README example output replaced with a real run on a generated tree.
+
 ## [0.1.0] - 2026-08-30
 
 ### Added
