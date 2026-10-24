@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A victim naming the kept file under another spelling (`./a` vs `a`) or
   as a hard link could be deleted; victims that are the same file as the
   survivor are now skipped.
+- A group whose delete list names the kept file under another spelling
+  (`sub/../a`, an absolute path, a case variant on a case-insensitive
+  filesystem) or as a hard link was only partly refused: the alias was
+  skipped but the rest of the group was deleted and the command exited 0.
+  Such a group is now refused whole, as documented.
 - `--from-manifest` deleted files without `--delete`, although `--help`
   documented `--delete` as required. It now refuses unless `--delete` or
   `--dry-run` is given.

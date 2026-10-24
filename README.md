@@ -221,7 +221,7 @@ is the common case.
 cargo test --all-targets
 ```
 
-69 tests (0 ignored). The test suite builds real directory trees with `tempfile` and covers:
+70 tests (0 ignored). The test suite builds real directory trees with `tempfile` and covers:
 identical-content detection, the same-size/different-content false
 positive guard, empty files, single-file trees, nested directories,
 exclude globs, the min-size filter, hard-link identity grouping, each
