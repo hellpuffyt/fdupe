@@ -96,6 +96,29 @@ fn hard_link_victim_of_the_kept_file_is_not_deleted() {
 }
 
 #[test]
+fn group_listing_the_kept_file_under_another_spelling_is_refused_whole() {
+    // Regression: the alias was skipped but the rest of the group was still
+    // deleted and the command exited 0, although the documented contract is
+    // that such a group is refused and nothing in it is touched.
+    let dir = new_tempdir();
+    let a = write_file(dir.path(), "a.txt", b"aliased survivor");
+    let b = write_file(dir.path(), "b.txt", b"aliased survivor");
+    fs::create_dir(dir.path().join("sub")).unwrap();
+    let alias = dir.path().join("sub").join("..").join("a.txt");
+    let hash = fdupe::hashing::full_hash(&a).unwrap();
+    let manifest = Manifest {
+        version: 1,
+        keep_strategy: KeepStrategy::First,
+        groups: vec![ManifestEntry { size: 16, hash, keep: a.clone(), delete: vec![b.clone(), alias] }],
+    };
+    let exec = execute_manifest(&manifest, false, false);
+    assert_eq!(exec.deleted, [] as [std::path::PathBuf; 0]);
+    assert_eq!(exec.refused_groups.len(), 1);
+    assert!(a.exists());
+    assert!(b.exists());
+}
+
+#[test]
 fn direct_delete_reverifies_files_changed_after_the_scan() {
     // Regression: `--delete` skipped verification ("computed moments ago"),
     // but a file can change between being hashed and being deleted.

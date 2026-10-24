@@ -103,6 +103,26 @@ pub fn execute_manifest(manifest: &Manifest, dry_run: bool, skip_verify: bool) -
             continue;
         }
 
+        // The survivor listed for deletion under another spelling (`t/../a`,
+        // an absolute path, a case variant on a case-insensitive filesystem)
+        // or as a hard link: the manifest is inconsistent, so refuse the
+        // whole group rather than act on the rest of it.
+        if let Some(alias) =
+            entry.delete.iter().find(|v| same_file::is_same_file(v, &entry.keep).unwrap_or(false))
+        {
+            report.refused_groups.push(format!(
+                "refusing group {} (size={}): {} is the kept copy {} under another name",
+                entry.hash,
+                entry.size,
+                alias.display(),
+                entry.keep.display()
+            ));
+            for victim in &entry.delete {
+                report.skipped.push((victim.clone(), "group lists the kept copy for deletion".to_string()));
+            }
+            continue;
+        }
+
         if let Some(problem) = survivor_problem(entry, skip_verify) {
             report.refused_groups.push(format!(
                 "refusing group {} (size={}): kept copy {} {problem}",
